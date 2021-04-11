@@ -271,12 +271,16 @@ build:short_logs --output_filter=DONT_MATCH_ANYTHING
 # Workaround for gcc 10+ warnings related to upb.
 # See https://github.com/tensorflow/tensorflow/issues/39467
 build:linux --copt=-Wno-stringop-truncation
+
+# Build with Cloud TPU support.
+build --define=with_tpu_support=false
 """
 
 
 
 def write_bazelrc(cuda_toolkit_path=None, cudnn_install_path=None,
-                  cuda_version=None, cudnn_version=None, rocm_toolkit_path=None, **kwargs):
+                  cuda_version=None, cudnn_version=None, rocm_toolkit_path=None,
+                  tf_path=None, **kwargs):
   with open("../.bazelrc", "w") as f:
     f.write(BAZELRC_TEMPLATE.format(**kwargs))
     if cuda_toolkit_path:
@@ -294,6 +298,9 @@ def write_bazelrc(cuda_toolkit_path=None, cudnn_install_path=None,
     if rocm_toolkit_path:
       f.write("build --action_env ROCM_PATH=\"{rocm_toolkit_path}\"\n"
               .format(rocm_toolkit_path=rocm_toolkit_path))
+    if tf_path:
+      f.write("build --action_env TF_PATH=\"{tf_path}\"\n"
+              .format(tf_path=tf_path))
 
 BANNER = r"""
      _   _  __  __
@@ -419,6 +426,14 @@ def main():
       "--output_path",
       default=os.path.join(cwd, "dist"),
       help="Directory to which the jaxlib wheel should be written")
+  parser.add_argument(
+      "--tf_path",
+      required=True,
+      help="The path to tensorflow repo")
+  parser.add_argument(
+      "--dev_install",
+      action="store_true",
+      help="Do not build wheel. Use dev install")
   args = parser.parse_args()
 
   if is_windows() and args.enable_cuda:
@@ -482,7 +497,8 @@ def main():
       cudnn_version=args.cudnn_version,
       rocm_toolkit_path=rocm_toolkit_path,
       rocm_amdgpu_targets=args.rocm_amdgpu_targets,
-)
+      tf_path=args.tf_path
+  )
 
   print("\nBuilding XLA and installing it in the jaxlib source tree...")
   config_args = args.bazel_options
@@ -512,6 +528,8 @@ def main():
     ["run", "--verbose_failures=true"] + config_args +
     [":build_wheel", "--",
     f"--output_path={output_path}"])
+  if args.dev_install:
+    command += ["--dev_install"]
   print(" ".join(command))
   shell(command)
   shell([bazel_path, "shutdown"])

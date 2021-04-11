@@ -40,6 +40,10 @@ parser.add_argument(
   default=None,
   required=True,
   help="Path to which the output wheel should be written. Required.")
+parser.add_argument(
+  "--dev_install",
+  action="store_true",
+  help="Do not build wheel. Use dev install")
 args = parser.parse_args()
 
 r = runfiles.Create()
@@ -227,6 +231,14 @@ def build_wheel(sources_path, output_path):
     shutil.copy(wheel, output_path)
 
 
+def dev_install(sources_path, output_path):
+  sys.stderr.write("Dev Install:\n")
+  sys.stderr.write(f'Run "pip install -e ." once in {output_path}\n')
+  os.system(f"rm -rf {output_path}/*")
+  os.system(f"cp -r {sources_path}/* {output_path}")
+  return
+
+
 tmpdir = None
 sources_path = args.sources_path
 if sources_path is None:
@@ -236,7 +248,10 @@ if sources_path is None:
 try:
   os.makedirs(args.output_path, exist_ok=True)
   prepare_wheel(sources_path)
-  build_wheel(sources_path, args.output_path)
+  if args.dev_install:
+    dev_install(sources_path, args.output_path)
+  else:
+    build_wheel(sources_path, args.output_path)
 finally:
   if tmpdir:
     tmpdir.cleanup()
